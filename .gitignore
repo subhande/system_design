@@ -2,3 +2,4 @@ splitwise-java
 distributed-cache-java
 
 **.DS_Store
+**__pycache__
