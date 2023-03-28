@@ -59,12 +59,10 @@ class Order:
     AMAZON_ADDRESS = Address("Amazon", "Amazon", "Amazon", "Amazon", "Amazon")
     def __init__(self, itemsList: List[Item], customer: Customer, payment: Payment, destinationAddress: Address, sourceAddress: Address):
         self.itemsList = itemsList
-        self._id = str(uuid4())
         self.customer = customer
         self.amount = sum([item.getAmount() for item in itemsList])
         self.payment = payment
-        self.destinationAddress = destinationAddress
-        self.sourceAddress = sourceAddress
+        self.orderDetails = OrderDetails(str(uuid4()), destinationAddress, sourceAddress)
     
     def statusChange(self, orderStatus: OrderStatus):
         if orderStatus == OrderStatus.PAYMENT_COMPLETE:
@@ -77,10 +75,8 @@ class ReturnOrder:
     def __init__(self, items: List[Item], destinationAddress: Address, sourceAddress: Address):
         self.items = items
         self.amountToRefund =  sum([item.getAmount() for item in items])
-        self.destinationAddress = destinationAddress
-        self.sourceAddress = sourceAddress
         self._id = str(uuid4())
-        self.orderDetails = OrderDetails(str(uuid4()), self.destinationAddress, self.sourceAddress)
+        self.orderDetails = OrderDetails(self._id, destinationAddress, sourceAddress)
     
 class OrderDetails:
     def __init__(self, _id, destication: Address, source: Address):
