@@ -3,187 +3,134 @@ from enum import Enum
 from decimal import Decimal
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import List, Dict
+from typing import List
 from uuid import uuid4
-import time
 
-class PostType(Enum):
-    TWEET: str = "tweet"
-    COMMENT: str = "comment"
 
-class LikeType(Enum):
-    HEART: str = "heart"
-    THUMBS_UP: str = "thumbs_up"
-    THUMBS_DOWN: str = "thumbs_down"
-    AWESOME: str = "awesome"
-    SAD: str = "sad"
 
-class User:
-    def __init__(self, name: str, userId: str, email: str, password: str, content: str):
+class Customer:
+    def __init__(self, name: str, email: str, phone: str, address: List[Address], cart: Cart):
         self.name = name
-        self.user_id = userId
         self.email = email
-        self.password = password
-        self.content = content
+        self.phone = phone
+        self.address = address
+        self.cart = cart
 
-class RegisteredAccount(User):
-    pass
+    def returnItem(self, items: List[Item]) -> ReturnOrder:
+        return ReturnOrder(items, self, Order.AMAZON_ADDRESS, self.address[0])
 
-class Like:
-    def __init__(self, user: RegisteredAccount, type: PostType, likeType: LikeType):
-        self.user = user
-        self.type = type
-        self.like_type = likeType
+    def addToCart(self, item: Item):
+       self.cart.addItem(item)
 
-class Comment:
-    def __init__(self, ra: RegisteredAccount, content: str, likes: List[Like]):
-        self.ra = ra
-        self.content = content
-        self.likes = likes
+    def viewItems(self) -> List[Item]:
+        return self.cart.getItemsList()
 
-    def showComment(self):
-        print(self.content)
+    def checkOut(self) -> Order:
+        return Order(self.cart.getItemsList(), self, self.address[0], Order.AMAZON_ADDRESS)
 
-    def addLike(self, u: RegisteredAccount, likeType: LikeType):
-        self.likes.append(Like(u, PostType.COMMENT, likeType))
+class Item:
+    def __init__(self, name: str, price: Decimal, quantity: int):
+        self.name = name
+        self.price = price
+        self.quantity = quantity
 
-    def removeLike(self, u: RegisteredAccount):
-        # Remoive like where use of like is u
-        pass
+    def getAmount(self) -> Decimal:
+        return self.price * self.quantity
 
-class CommentThread:
-    def __init__(self, threadId: str, commentList: List[Comment]):
-        self.threadId = threadId
-        self.commentList = commentList
+class Cart:
+    def __init__(self, items: List[Item]):
+        self.items = items
 
-    def comments(self):
-        return self.commentList
-    
-    def addComment(self, c: Comment):
-        self.commentList.append(c)
+    def getItemsList(self):
+        return self.items
 
+    def addItem(self, item: Item):
+        self.items.append(item)
 
-class Tweet:
-    def __init__(self, user: RegisteredAccount, contnet: str, hastags: List[str], taggedUsers: List[str], commentThread: Dict[str, CommentThread], like: List[RegisteredAccount]):
-        self.tweetId = str(uuid4())
-        self.user = user
-        self.tweetTime = time.time()
-        self.content = contnet
-        self.hashtags = hastags
-        self.taggedUsers = taggedUsers
-        self.commentThread = commentThread
-        self.likes = like
+class Address:
+    def __init__(self, addressLine1: str, addressLine2: str, city: str, state: str, pincode: str):
+        self.addressLine1 = addressLine1
+        self.addressLine2 = addressLine2
+        self.city = city
+        self.state = state
+        self.pincode = pincode
 
-    def getContent(self):
-        return self.content
-    
-    def comment(self, threadId: str, c: Comment):
-        if threadId not in self.commentThread:
-            self.commentThread[threadId] = CommentThread(str(uuid4()), [])
-        self.commentThread[threadId].addComment(c)
+class Order:
+    AMAZON_ADDRESS = Address("Amazon", "Amazon", "Amazon", "Amazon", "Amazon")
+    def __init__(self, itemsList: List[Item], customer: Customer, payment: Payment, destinationAddress: Address, sourceAddress: Address):
+        self.itemsList = itemsList
+        self._id = str(uuid4())
+        self.customer = customer
+        self.amount = sum([item.getAmount() for item in itemsList])
+        self.payment = payment
+        self.destinationAddress = destinationAddress
+        self.sourceAddress = sourceAddress
 
-    def addLike(self, u: RegisteredAccount, likeType: LikeType):
-        self.likes.append(Like(u, PostType.TWEET, likeType))
-
-    def removeLike(self, u: RegisteredAccount):
-        # Remoive like where use of like is u
-        pass
-
-    def isCelebTweet(self):
-        return self.user.isCelebrity()
-    
-
-class TimeLineWall:
-    def __init__(self, tweets: List[Tweet]):
-        self.tweets = tweets
-
-    def addTweet(self, t: Tweet):
-        self.tweets.append(t)
-
-    def removeTweet(self, t: Tweet):
-        self.tweets.remove(t)
-    
-class TimeLine(TimeLineWall):
-    def showTimeline(self):
-        return self.tweets
-    
-    def addCelebTweet(self, celebTweets: List[Tweet]):
-        self.tweets.extend(celebTweets)
+    def statusChange(self, orderStatus: OrderStatus):
+        if orderStatus == OrderStatus.PAYMENT_COMPLETE:
+            self.delivery = Delivery(self, "Initiated", self.itemsList, "Initiated")
+        if orderStatus == OrderStatus.COMPLETED:
+            [Invoice(self, item, item.price, item.price * 0.18) for item in self.itemsList]
 
 
-class Wall(TimeLineWall):
-    def showWall(self):
-        return self.tweets
+class ReturnOrder:
+    def __init__(self, items: List[Item], destinationAddress: Address, sourceAddress: Address):
+        self.items = items
+        self.amountToRefund =  sum([item.getAmount() for item in items])
+        self.destinationAddress = destinationAddress
+        self.sourceAddress = sourceAddress
+        self._id = str(uuid4())
+        self.orderDetails = OrderDetails(str(uuid4()), self.destinationAddress, self.sourceAddress)
 
-    
-    
-class ContnetServer:
-    subcriberList: Dict[RegisteredAccount, List[RegisteredAccount]] = {}
-    celebritiesTweet: Dict[RegisteredAccount, List[Tweet]] = {}
+class OrderDetails:
+    def __init__(self, _id, destication: Address, source: Address):
+        self.destinationAddress = destication
+        self.sourceAddress = source
+        self._id = _id
 
-    def getCelebPosts(self):
-        return self.celebritiesTweet
+class Payment:
+    def __init__(self, id_: str, paymentMethod: PaymentMethod, status: str):
+        self.id_ = id_
+        self.paymentMethod = paymentMethod
+        self.status = status
 
-    def addSubscriber(self, followee: RegisteredAccount, follower: RegisteredAccount):
-        if followee not in self.subcriberList:
-            self.subcriberList[followee] = []
-        self.subcriberList[followee].append(follower)
 
-    def sendMessage(self, followee: RegisteredAccount, t: Tweet):
-        if not followee.isCelebrity():
-            for follower in self.subcriberList[followee]:
-                follower.getTimeLine().addTweet(t)
+class PaymentMethod(Enum):
+    CREDIT_CARD = 1
+    DEBIT_CARD = 2
+    NET_BANKING = 3
+    UPI = 4
+    CASH_ON_DELIVERY = 5
 
-        else:
-            if followee not in self.celebritiesTweet:
-                self.celebritiesTweet[followee] = []
-            self.celebritiesTweet[followee].append(t)
 
-class RegisteredAccount(User):
-    def __init__(self, name: str, userId: str, email: str, password: str, content: str):
-        super().__init__(name, userId, email, password, content)
-        
-        self.followers = []
-        self.following = []
-        self.isCelebrity = False
-        self.timeLine = TimeLine([])
-        self.wall = Wall([])
-        # self.contentServer = ContnetServer()
+class Product:
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
+        self._id = str(uuid4())
 
-    def getTimeLine(self):
-        return self.timeLine
-    
-    def checkCelebrity(self):
-        return self.followers > 1000
-        # return self.isCelebrity
+class Delivery:
+    def __init__(self, order: Order, status: str, itesmList: List[Item], deliveryUpdates: str):
+        self.id_ = str(uuid4())
+        self.order = order
+        self.status = status
+        self.itemsList = itesmList
+        self.deliveryUpdates = deliveryUpdates
 
-    def viewTweet(self, t: Tweet):
-        return t.getContent()
-    
-    def addTweet(self, t: Tweet):
-        self.wall.addTweet(t)
-        # self.contentServer.sendMessage(self, t)
-    
-    def postTweet(self, t: Tweet, contentServer: ContnetServer):
-        self.feedwall.addTweet(t)
-        contentServer.sendMessage(self, t)
 
-    def showTimeline(self, contentServer: ContnetServer):
-        self.nonCelebTweets: self.timeLine.getTweets()
-        self.celebTweets = []
+class OrderStatus(Enum):
+    CHECKOUT = 1
+    PAYMENT = 2
+    PAYMENT_COMPLETE = 3
+    INCOMPLETE = 4
+    IN_FLIGHT = 5
+    COMPLETED = 6
 
-        for i, followee in enumerate(self.following):
-            if followee.checkCelebrity():
-                self.celebTweets.extend(contentServer.getCelebPosts()[i]) 
-        self.nonCelebTweets.extend(self.celebrities)
 
-    def addFollower(self,c: ContnetServer, ra: RegisteredAccount):
-
-        self.addFollowers(ra)
-        self.followers.append(ra)
-
-    def followUser(self, c: ContnetServer, ra: RegisteredAccount):
-        c.addFollower(ra, self)
-    
-    
-
+class Invoice:
+    def __init__(self, order: Order, iem: Item, invoiceDetails: str, price: Decimal, taxes: Decimal):
+        self.order = order
+        self.item = iem
+        self.invoiceDetails = invoiceDetails
+        self.price = price
+        self.taxes = taxes
